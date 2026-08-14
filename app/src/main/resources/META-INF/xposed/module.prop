@@ -1,7 +1,6 @@
-# libxposed 模块属性
-# 最小 API 版本 (libxposed)
-minApiVersion=100
-# 目标 API 版本 (libxposed)
-targetApiVersion=100
-# 是否为静态作用域
-staticScope=true
+id=chastify_owndroid_bridge
+name=Chastify Owndroid Bridge
+version=1.0
+versionCode=1
+author=User
+description=Bridges Chastify and Owndroid

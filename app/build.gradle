@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.bridge'
+    namespace 'com.example.module'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.bridge"
+        applicationId "com.example.module"
         minSdk 24
         targetSdk 34
         versionCode 1
@@ -21,5 +21,6 @@ android {
 }
 
 dependencies {
-    // Пусто! Никаких внешних скачиваний и ошибок 401.
+    // Официальная и стабильная библиотека из Maven Central
+    compileOnly 'io.github.libxposed:api:100'
 }

@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    // Подключаем наш локальный модуль вместо поиска библиотеки в интернете
-    compileOnly project(':libxposed-compat')
+    // Подключаем официальный LSPosed API напрямую, без промежуточных модулей
+    compileOnly 'io.github.lsposed:android-xposed-api:82'
 }

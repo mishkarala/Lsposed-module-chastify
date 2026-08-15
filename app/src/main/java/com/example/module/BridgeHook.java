@@ -1,28 +1,25 @@
-package com.example.bridge;
+package com.example.module;
 
 import android.content.Context;
 import android.content.Intent;
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import android.os.Bundle;
 
-public class BridgeHook implements IXposedHookLoadPackage {
+public class BridgeHook implements XposedInterface.IXposedHookLoadPackage {
 
     private static final String CHASTIFY_PKG = "net.chastify.app"; 
     private static final String OWNDROID_PKG = "com.bintianqi.owndroid";
 
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+    public void handleLoadPackage(XposedInterface.XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
 
         if (lpparam.packageName.equals(CHASTIFY_PKG)) {
             
-            XposedHelpers.findAndHookMethod(
+            XposedInterface.XposedHelpers.findAndHookMethod(
                 "android.app.admin.DevicePolicyManager",
                 lpparam.classLoader,
                 "isDeviceOwnerApp",
                 String.class,
-                new XC_MethodHook() {
+                new XposedInterface.XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                         String pkg = (String) param.args[0];
@@ -33,20 +30,20 @@ public class BridgeHook implements IXposedHookLoadPackage {
                 }
             );
 
-            XposedHelpers.findAndHookMethod(
+            XposedInterface.XposedHelpers.findAndHookMethod(
                 "android.app.admin.DevicePolicyManager",
                 lpparam.classLoader,
                 "setUserRestriction",
                 android.content.ComponentName.class,
                 String.class,
                 String.class,
-                new XC_MethodHook() {
+                new XposedInterface.XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                         String restrictionKey = (String) param.args[1];
                         param.setResult(null); 
 
-                        Context context = (Context) XposedHelpers.callMethod(param.thisObject, "getContext");
+                        Context context = (Context) XposedInterface.XposedHelpers.callMethod(param.thisObject, "getContext");
                         if (context != null) {
                             Intent intent = new Intent("com.owndroid.ACTION_APPLY_RESTRICTION");
                             intent.setPackage(OWNDROID_PKG);

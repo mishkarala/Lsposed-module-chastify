@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    // Это единственная правильная и рабочая ссылка для современных модулей
-    compileOnly 'org.lsposed.xposed:api:82'
+    // Единственный правильный и вечно живой пакет Xposed API из Maven Central
+    compileOnly 'de.robv.android.xposed:api:82'
 }

@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    // Официальная и стабильная библиотека из Maven Central
-    compileOnly 'io.github.libxposed:api:100'
+    // Актуальная и реально существующая в Maven Central библиотека
+    compileOnly 'io.github.libxposed:api:102.0.0'
 }

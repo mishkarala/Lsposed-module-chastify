@@ -16,3 +16,8 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    // Добавляем официальную API зависимость, которую Gradle сможет скачать
+    compileOnly 'io.github.libxposed:api:3.0.0'
+}

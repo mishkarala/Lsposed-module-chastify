@@ -1,30 +1,32 @@
+package com.example.module;
 
 import android.content.Context;
 import android.content.Intent;
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.XposedModule;
 
-public class BridgeHook implements IXposedHookLoadPackage {
+public class BridgeHook extends XposedModule {
 
     private static final String CHASTIFY_PKG = "net.chastify.app"; 
     private static final String OWNDROID_PKG = "com.bintianqi.owndroid";
 
-    @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+    public BridgeHook(XposedInterface base, ModuleLoadedParam parameters) {
+        super(base, parameters);
+    }
 
-        if (lpparam.packageName.equals(CHASTIFY_PKG)) {
+    @Override
+    public void onPackageLoaded(PackageLoadedParam lpparam) {
+        if (lpparam.getPackageName().equals(CHASTIFY_PKG)) {
             
-            XposedHelpers.findAndHookMethod(
-                "android.app.admin.DevicePolicyManager",
-                lpparam.classLoader,
+            // Хуки для LibXposed 102+
+            hookMethod(
+                android.app.admin.DevicePolicyManager.class,
                 "isDeviceOwnerApp",
-                String.class,
-                new XC_MethodHook() {
+                new Class[]{String.class},
+                new XposedInterface.HookCallback() {
                     @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        String pkg = (String) param.args[0];
+                    public void after(MethodHookParam param) throws Throwable {
+                        String pkg = (String) param.getArg(0);
                         if (CHASTIFY_PKG.equals(pkg)) {
                             param.setResult(true);
                         }
@@ -32,20 +34,17 @@ public class BridgeHook implements IXposedHookLoadPackage {
                 }
             );
 
-            XposedHelpers.findAndHookMethod(
-                "android.app.admin.DevicePolicyManager",
-                lpparam.classLoader,
+            hookMethod(
+                android.app.admin.DevicePolicyManager.class,
                 "setUserRestriction",
-                android.content.ComponentName.class,
-                String.class,
-                String.class,
-                new XC_MethodHook() {
+                new Class[]{android.content.ComponentName.class, String.class, String.class},
+                new XposedInterface.HookCallback() {
                     @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        String restrictionKey = (String) param.args[1];
+                    public void before(MethodHookParam param) throws Throwable {
+                        String restrictionKey = (String) param.getArg(1);
                         param.setResult(null); 
 
-                        Context context = (Context) XposedHelpers.callMethod(param.thisObject, "getContext");
+                        Context context = (Context) getContextFromObject(param.thisObject());
                         if (context != null) {
                             Intent intent = new Intent("com.owndroid.ACTION_APPLY_RESTRICTION");
                             intent.setPackage(OWNDROID_PKG);
@@ -55,6 +54,15 @@ public class BridgeHook implements IXposedHookLoadPackage {
                     }
                 }
             );
+        }
+    }
+
+    private Context getContextFromObject(Object obj) {
+        try {
+            java.lang.reflect.Method method = obj.getClass().getMethod("getContext");
+            return (Context) method.invoke(obj);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

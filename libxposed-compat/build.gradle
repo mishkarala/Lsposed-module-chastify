@@ -18,6 +18,6 @@ android {
 }
 
 dependencies {
-    // Добавляем официальную API зависимость, которую Gradle сможет скачать
-    compileOnly 'io.github.libxposed:api:3.0.0'
+    // Возвращаем стандартную версию API, которую запрашивал шаблон
+    compileOnly 'io.github.libxposed:api:100'
 }

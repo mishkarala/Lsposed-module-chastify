@@ -21,6 +21,5 @@ android {
 }
 
 dependencies {
-    // Надежный стабильный источник через JitPack, который собирается без ошибок доступа
-    compileOnly 'com.github.LSPosed:AndroidXposedApi:main-SNAPSHOT'
+    // Пусто! Никаких внешних скачиваний и ошибок 401.
 }

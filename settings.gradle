@@ -10,8 +10,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://jitpack.io' } // На всякий случай добавляем JitPack
     }
 }
 
 rootProject.name = "Lsposed-module-chastify"
-include ':app', ':libxposed-compat'
+include ':app'

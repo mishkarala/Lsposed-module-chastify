@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    // Единственный правильный и вечно живой пакет Xposed API из Maven Central
-    compileOnly files('libs/xposed-api.jar')
+    // Надежный стабильный источник через JitPack, который собирается без ошибок доступа
+    compileOnly 'com.github.LSPosed:AndroidXposedApi:main-SNAPSHOT'
 }

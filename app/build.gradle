@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    // Подключаем официальный LSPosed API напрямую, без промежуточных модулей
-    compileOnly 'io.github.lsposed:android-xposed-api:82'
+    // Это единственная правильная и рабочая ссылка для современных модулей
+    compileOnly 'org.lsposed.xposed:api:82'
 }

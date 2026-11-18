@@ -38,9 +38,9 @@ public class BridgeHook extends XposedModule {
     private static final String CALLER_IDENTITY_CLASS =
             "com.android.server.devicepolicy.CallerIdentity";
 
-    public BridgeHook(XposedInterface base, ModuleLoadedParam param) {
-        super(base, param);
-    }
+    // API 102: the framework instantiates the entry class with a no-arg
+    // constructor and injects the interface via attachFramework() internally.
+    // Do NOT declare a (XposedInterface, ModuleLoadedParam) constructor here.
 
     @Override
     public void onSystemServerStarting(SystemServerStartingParam param) {

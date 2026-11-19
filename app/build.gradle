@@ -10,8 +10,8 @@ android {
         applicationId "com.example.module"
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "2.0"
     }
 
     compileOptions {
@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    // Актуальная и реально существующая в Maven Central библиотека
-    compileOnly 'io.github.libxposed:api:102.0.0'
+    // Classic Xposed API (bundled jar; recognized by every LSPosed build)
+    compileOnly files('libs/api-82.jar')
 }

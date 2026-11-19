@@ -1,33 +1,33 @@
 package com.example.module;
 
 import android.content.ComponentName;
-import android.util.Log;
-
-
-import io.github.libxposed.api.XposedInterface;
-import io.github.libxposed.api.XposedModule;
 
 import java.lang.reflect.Method;
 
+import de.robv.android.xposed.IXposedHookLoadPackage;
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+
 /**
- * Chastify device-owner bridge.
+ * Chastify device-owner bridge (classic Xposed API).
  *
- * <p>Runs inside {@code system_server} and makes the system's
- * {@code DevicePolicyManagerService} treat the Chastify app as the device
- * owner (and profile owner) for its own calls. This lets Chastify's
+ * <p>Loads into {@code system_server} (which Xposed exposes as the package
+ * {@code "android"}) and makes {@code DevicePolicyManagerService} treat the
+ * Chastify app as device/profile owner for its own calls. This lets Chastify's
  * DevicePolicyManager requests — e.g. {@code addUserRestriction} — actually be
  * applied by the system, without a second app (Owndroid) and without really
  * provisioning Chastify as device owner.</p>
  *
- * <p>Scope must be {@code system}. Chastify itself still has to be enabled as a
+ * <p>Scope: System Framework. Chastify itself still has to be enabled as a
  * normal device-admin (Settings &rarr; device admin apps); this module only
  * fakes the elevation from admin to owner.</p>
  *
- * <p>The ownership checks in {@code DevicePolicyManagerService} are internal,
- * non-SDK and version-specific, so the methods are located reflectively at
- * runtime instead of being referenced at compile time.</p>
+ * <p>The ownership checks are internal, non-SDK and version-specific, so the
+ * methods are located reflectively at runtime instead of being referenced at
+ * compile time.</p>
  */
-public class BridgeHook extends XposedModule {
+public class BridgeHook implements IXposedHookLoadPackage {
 
     private static final String TAG = "ChastifyBridge";
 
@@ -38,17 +38,18 @@ public class BridgeHook extends XposedModule {
     private static final String CALLER_IDENTITY_CLASS =
             "com.android.server.devicepolicy.CallerIdentity";
 
-    // API 102: the framework instantiates the entry class with a no-arg
-    // constructor and injects the interface via attachFramework() internally.
-    // Do NOT declare a (XposedInterface, ModuleLoadedParam) constructor here.
-
     @Override
-    public void onSystemServerStarting(SystemServerStartingParam param) {
+    public void handleLoadPackage(LoadPackageParam lpparam) {
+        // DevicePolicyManagerService lives in system_server, loaded as "android".
+        if (!"android".equals(lpparam.packageName)) {
+            return;
+        }
+
         final Class<?> dpms;
         try {
-            dpms = param.getClassLoader().loadClass(DPMS_CLASS);
+            dpms = lpparam.classLoader.loadClass(DPMS_CLASS);
         } catch (ClassNotFoundException e) {
-            log(Log.ERROR, TAG, "DevicePolicyManagerService not found, aborting", e);
+            XposedBridge.log(TAG + ": DevicePolicyManagerService not found, aborting");
             return;
         }
 
@@ -64,15 +65,14 @@ public class BridgeHook extends XposedModule {
                 continue;
             }
             try {
-                hook(m).intercept(OwnerHooker.INSTANCE);
+                XposedBridge.hookMethod(m, OWNER_HOOK);
                 hooked++;
-                log(Log.INFO, TAG, "hooked " + name
-                        + "(" + paramNames(m) + ")");
             } catch (Throwable t) {
-                log(Log.WARN, TAG, "failed to hook " + name, t);
+                XposedBridge.log(TAG + ": failed to hook " + name + ": " + t);
             }
         }
-        log(Log.INFO, TAG, "installed " + hooked + " owner-check hook(s) for " + CHASTIFY_PKG);
+        XposedBridge.log(TAG + ": installed " + hooked
+                + " owner-check hook(s) for " + CHASTIFY_PKG);
     }
 
     private static boolean hasIdentifiableCaller(Method m) {
@@ -87,54 +87,43 @@ public class BridgeHook extends XposedModule {
         return false;
     }
 
-    private static String paramNames(Method m) {
-        final StringBuilder sb = new StringBuilder();
-        final Class<?>[] ps = m.getParameterTypes();
-        for (int i = 0; i < ps.length; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(ps[i].getSimpleName());
-        }
-        return sb.toString();
-    }
-
     /**
-     * Returns {@code true} from an ownership check whenever the caller in that
-     * particular call is Chastify; otherwise lets the original method run, so no
+     * Forces an ownership check to return {@code true} whenever the caller in
+     * that particular call is Chastify; otherwise lets the original run, so no
      * other app or system component is affected.
      */
-    private static final class OwnerHooker implements XposedInterface.Hooker {
-
-        static final OwnerHooker INSTANCE = new OwnerHooker();
-
+    private static final XC_MethodHook OWNER_HOOK = new XC_MethodHook() {
         @Override
-        public Object intercept(XposedInterface.Chain chain) throws Throwable {
-            for (Object arg : chain.getArgs()) {
+        protected void beforeHookedMethod(MethodHookParam param) {
+            if (param.args == null) {
+                return;
+            }
+            for (Object arg : param.args) {
                 if (arg == null) {
                     continue;
                 }
                 if (arg instanceof ComponentName) {
                     if (CHASTIFY_PKG.equals(((ComponentName) arg).getPackageName())) {
-                        return Boolean.TRUE;
+                        param.setResult(Boolean.TRUE);
+                        return;
                     }
                 } else if (CALLER_IDENTITY_CLASS.equals(arg.getClass().getName())) {
                     if (CHASTIFY_PKG.equals(callerPackage(arg))) {
-                        return Boolean.TRUE;
+                        param.setResult(Boolean.TRUE);
+                        return;
                     }
                 }
             }
-            return chain.proceed();
         }
+    };
 
-        private static String callerPackage(Object callerIdentity) {
-            try {
-                final Method gp = callerIdentity.getClass().getMethod("getPackageName");
-                final Object r = gp.invoke(callerIdentity);
-                return r == null ? null : r.toString();
-            } catch (Throwable t) {
-                return null;
-            }
+    private static String callerPackage(Object callerIdentity) {
+        try {
+            final Method gp = callerIdentity.getClass().getMethod("getPackageName");
+            final Object r = gp.invoke(callerIdentity);
+            return r == null ? null : r.toString();
+        } catch (Throwable t) {
+            return null;
         }
     }
 }

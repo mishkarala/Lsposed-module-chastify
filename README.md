@@ -62,8 +62,11 @@ tag like `v1.0` builds the APK and attaches it to a **Release**. Locally:
 
 ## Dependencies
 
-Built against the new [libxposed](https://github.com/libxposed/api) API `102.0.0`
-(`compileOnly`, not bundled into the APK).
+Built against the classic Xposed API (`de.robv.android.xposed:api:82`, bundled as
+`app/libs/api-82.jar`, `compileOnly`). The classic API is recognized and loaded by
+every LSPosed build; the newer libxposed API is not listed by some LSPosed
+variants, which is why this module uses the classic one. Entry point is declared
+in `assets/xposed_init`.
 
 ---
 

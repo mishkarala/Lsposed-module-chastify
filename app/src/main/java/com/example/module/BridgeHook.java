@@ -13,19 +13,23 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
  * Chastify device-owner bridge (classic Xposed API).
  *
  * <p>Loads into {@code system_server} (which Xposed exposes as the package
- * {@code "android"}) and makes {@code DevicePolicyManagerService} treat the
- * Chastify app as device/profile owner for its own calls. This lets Chastify's
- * DevicePolicyManager requests — e.g. {@code addUserRestriction} — actually be
- * applied by the system, without a second app (Owndroid) and without really
- * provisioning Chastify as device owner.</p>
+ * {@code "android"}) and makes {@code DevicePolicyManagerService} report the
+ * Chastify app as device/profile owner. This covers two things:</p>
+ *
+ * <ul>
+ *   <li>the app's own self-check — {@code isDeviceOwnerApp(packageName)} — so
+ *       Chastify believes it is device owner;</li>
+ *   <li>the internal permission checks — {@code isDeviceOwner(CallerIdentity)} /
+ *       {@code isProfileOwner(...)} — so its DevicePolicyManager requests are
+ *       actually applied by the system.</li>
+ * </ul>
  *
  * <p>Scope: System Framework. Chastify itself still has to be enabled as a
  * normal device-admin (Settings &rarr; device admin apps); this module only
  * fakes the elevation from admin to owner.</p>
  *
- * <p>The ownership checks are internal, non-SDK and version-specific, so the
- * methods are located reflectively at runtime instead of being referenced at
- * compile time.</p>
+ * <p>These checks are internal, non-SDK and version-specific, so the methods are
+ * located reflectively at runtime instead of being referenced at compile time.</p>
  */
 public class BridgeHook implements IXposedHookLoadPackage {
 
@@ -56,17 +60,19 @@ public class BridgeHook implements IXposedHookLoadPackage {
         int hooked = 0;
         for (Method m : dpms.getDeclaredMethods()) {
             final String name = m.getName();
-            if (!name.equals("isDeviceOwner") && !name.equals("isProfileOwner")) {
+            // Covers isDeviceOwnerApp / isProfileOwnerApp (the app's self-check,
+            // String packageName) and isDeviceOwner / isProfileOwner (internal
+            // permission checks, CallerIdentity or ComponentName).
+            if (!name.startsWith("isDeviceOwner") && !name.startsWith("isProfileOwner")) {
                 continue;
             }
-            // Only hook overloads whose arguments let us identify the caller:
-            // a CallerIdentity, or a ComponentName (the app's admin component).
-            if (!hasIdentifiableCaller(m)) {
+            if (!returnsBoolean(m) || !hasIdentifiableCaller(m)) {
                 continue;
             }
             try {
                 XposedBridge.hookMethod(m, OWNER_HOOK);
                 hooked++;
+                XposedBridge.log(TAG + ": hooked " + name + "(" + paramNames(m) + ")");
             } catch (Throwable t) {
                 XposedBridge.log(TAG + ": failed to hook " + name + ": " + t);
             }
@@ -75,9 +81,14 @@ public class BridgeHook implements IXposedHookLoadPackage {
                 + " owner-check hook(s) for " + CHASTIFY_PKG);
     }
 
+    private static boolean returnsBoolean(Method m) {
+        final Class<?> r = m.getReturnType();
+        return r == boolean.class || r == Boolean.class;
+    }
+
     private static boolean hasIdentifiableCaller(Method m) {
         for (Class<?> p : m.getParameterTypes()) {
-            if (p == ComponentName.class) {
+            if (p == String.class || p == ComponentName.class) {
                 return true;
             }
             if (CALLER_IDENTITY_CLASS.equals(p.getName())) {
@@ -87,10 +98,23 @@ public class BridgeHook implements IXposedHookLoadPackage {
         return false;
     }
 
+    private static String paramNames(Method m) {
+        final StringBuilder sb = new StringBuilder();
+        final Class<?>[] ps = m.getParameterTypes();
+        for (int i = 0; i < ps.length; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(ps[i].getSimpleName());
+        }
+        return sb.toString();
+    }
+
     /**
-     * Forces an ownership check to return {@code true} whenever the caller in
-     * that particular call is Chastify; otherwise lets the original run, so no
-     * other app or system component is affected.
+     * Forces an ownership check to return {@code true} whenever the subject of
+     * that particular call is Chastify (matched by package name, admin component,
+     * or caller identity); otherwise lets the original run, so no other app or
+     * system component is affected.
      */
     private static final XC_MethodHook OWNER_HOOK = new XC_MethodHook() {
         @Override
@@ -102,18 +126,29 @@ public class BridgeHook implements IXposedHookLoadPackage {
                 if (arg == null) {
                     continue;
                 }
-                if (arg instanceof ComponentName) {
+                if (arg instanceof String) {
+                    if (CHASTIFY_PKG.equals(arg)) {
+                        force(param);
+                        return;
+                    }
+                } else if (arg instanceof ComponentName) {
                     if (CHASTIFY_PKG.equals(((ComponentName) arg).getPackageName())) {
-                        param.setResult(Boolean.TRUE);
+                        force(param);
                         return;
                     }
                 } else if (CALLER_IDENTITY_CLASS.equals(arg.getClass().getName())) {
                     if (CHASTIFY_PKG.equals(callerPackage(arg))) {
-                        param.setResult(Boolean.TRUE);
+                        force(param);
                         return;
                     }
                 }
             }
+        }
+
+        private void force(MethodHookParam param) {
+            param.setResult(Boolean.TRUE);
+            XposedBridge.log(TAG + ": forced true -> "
+                    + ((Method) param.method).getName());
         }
     };
 
